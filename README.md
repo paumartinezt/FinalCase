@@ -107,4 +107,41 @@ Esto permite transformar el análisis en una herramienta que facilita la explora
 
 ---
 
+# Tecnologías utilizadas
+
+El proyecto fue desarrollado utilizando las siguientes herramientas:
+
+- Python
+- Pandas
+- NumPy
+- Scikit-learn
+- Plotly
+- Streamlit
+- Google Colab
+
+---
+
+# Dashboard
+
+Puedes acceder al dashboard interactivo en el siguiente enlace:
+
+**Streamlit App:**  
+(link aquí)
+
+---
+
+# Video de presentación
+
+El video de explicación del proyecto puede consultarse en el siguiente enlace:
+
+(link aquí)
+
+---
+
+# Autor
+
+Paulina Martínez  
+
+Proyecto académico desarrollado para la materia de **Business Analytics / Análisis de Negocios y Soluciones**.
+
 # Estructura del repositorio
