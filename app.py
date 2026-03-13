@@ -476,17 +476,67 @@ elif section == "Simulador de precio":
 
     st.write("Ajusta los valores y observa cómo cambia la predicción del modelo.")
 
+    st.info("""
+    **Cómo leer las variables del simulador:**
+    - **Ingreso medio del área** está expresado en decenas de miles de USD.  
+      Ejemplo: 5.0 = aproximadamente 50,000 USD.
+    - **Antigüedad mediana de la vivienda del área** está expresada en años.
+    - Las demás variables representan cantidades promedio o totales observadas en el área.
+    """)
+
     c1, c2 = st.columns(2)
 
     with c1:
-        median_income = st.slider("Ingreso medio del área", 0.0, 15.0, 5.0, 0.1)
-        housing_median_age = st.slider("Antigüedad de la vivienda", 1, 60, 20)
-        total_rooms = st.slider("Total de habitaciones", 1, 10000, 2000)
+        median_income = st.slider(
+            "Ingreso medio del área (decenas de miles de USD)",
+            min_value=0.0,
+            max_value=15.0,
+            value=5.0,
+            step=0.1
+        )
+        st.caption(f"Aproximadamente: ${median_income * 10000:,.0f} USD")
+
+        housing_median_age = st.slider(
+            "Antigüedad mediana de la vivienda del área (años)",
+            min_value=1,
+            max_value=60,
+            value=20,
+            step=1
+        )
+        st.caption(f"Valor seleccionado: {housing_median_age} años")
+
+        total_rooms = st.slider(
+            "Total de habitaciones en el área",
+            min_value=1,
+            max_value=10000,
+            value=2000,
+            step=1
+        )
 
     with c2:
-        total_bedrooms = st.slider("Total de dormitorios", 1, 3000, 400)
-        population = st.slider("Población del área", 1, 20000, 1000)
-        households = st.slider("Número de hogares", 1, 5000, 300)
+        total_bedrooms = st.slider(
+            "Total de dormitorios en el área",
+            min_value=1,
+            max_value=3000,
+            value=400,
+            step=1
+        )
+
+        population = st.slider(
+            "Población del área",
+            min_value=1,
+            max_value=20000,
+            value=1000,
+            step=1
+        )
+
+        households = st.slider(
+            "Número de hogares en el área",
+            min_value=1,
+            max_value=5000,
+            value=300,
+            step=1
+        )
 
     input_data = pd.DataFrame({
         "median_income": [median_income],
