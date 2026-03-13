@@ -13,7 +13,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 # CONFIGURACIÓN GENERAL
 # ---------------------------------
 st.set_page_config(
-    page_title="Housing Analytics Dashboard",
+    page_title="Dashboard de Viviendas",
     page_icon="🏠",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -54,6 +54,24 @@ def load_data():
     return data
 
 df = load_data()
+
+# ---------------------------------
+# NOMBRES BONITOS
+# ---------------------------------
+nombres_columnas = {
+    "median_income": "Ingreso medio del área",
+    "housing_median_age": "Antigüedad mediana de la vivienda",
+    "total_rooms": "Total de habitaciones",
+    "total_bedrooms": "Total de dormitorios",
+    "population": "Población del área",
+    "households": "Número de hogares",
+    "median_house_value": "Valor de la vivienda",
+    "ocean_proximity": "Zona",
+    "latitude": "Latitud",
+    "longitude": "Longitud",
+    "rooms_per_household": "Habitaciones por hogar",
+    "bedrooms_per_room": "Dormitorios por habitación"
+}
 
 # ---------------------------------
 # PREPARACIÓN DE DATOS
@@ -103,13 +121,13 @@ r2 = r2_score(y_test, rf_pred)
 # DATAFRAMES AUXILIARES
 # ---------------------------------
 importancias = pd.DataFrame({
-    "Variable": features,
+    "Variable": [nombres_columnas[col] for col in features],
     "Importancia": rf_model.feature_importances_
 }).sort_values(by="Importancia", ascending=False)
 
 pred_df = pd.DataFrame({
-    "Actual": y_test.values,
-    "Predicted": rf_pred
+    "Valor real": y_test.values,
+    "Valor predicho": rf_pred
 })
 
 df["rooms_per_household"] = df["total_rooms"] / df["households"]
@@ -134,7 +152,7 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("Filtros generales")
 
 income_range = st.sidebar.slider(
-    "Ingreso medio",
+    "Ingreso medio del área",
     min_value=float(df["median_income"].min()),
     max_value=float(df["median_income"].max()),
     value=(
@@ -144,7 +162,7 @@ income_range = st.sidebar.slider(
 )
 
 age_range = st.sidebar.slider(
-    "Antigüedad de la vivienda",
+    "Antigüedad mediana de la vivienda (años)",
     min_value=int(df["housing_median_age"].min()),
     max_value=int(df["housing_median_age"].max()),
     value=(
@@ -215,14 +233,14 @@ if section == "Overview":
 
     with c1:
         fig_hist = px.histogram(
-            filtered_df,
-            x="median_house_value",
+            filtered_df.rename(columns=nombres_columnas),
+            x="Valor de la vivienda",
             nbins=35,
-            title="Distribución del precio de las viviendas",
+            title="Distribución del valor de las viviendas",
             color_discrete_sequence=["#4F46E5"]
         )
         fig_hist.update_layout(
-            xaxis_title="Precio de la vivienda",
+            xaxis_title="Valor de la vivienda",
             yaxis_title="Frecuencia",
             height=420
         )
@@ -233,15 +251,19 @@ if section == "Overview":
             filtered_df.groupby("ocean_proximity", as_index=False)["median_house_value"]
             .mean()
             .sort_values("median_house_value", ascending=False)
+            .rename(columns={
+                "ocean_proximity": "Zona",
+                "median_house_value": "Precio promedio"
+            })
         )
 
         fig_zone = px.bar(
             zona_df,
-            x="ocean_proximity",
-            y="median_house_value",
+            x="Zona",
+            y="Precio promedio",
             text_auto=".0f",
             title="Precio promedio por zona",
-            color="median_house_value",
+            color="Precio promedio",
             color_continuous_scale="Blues"
         )
         fig_zone.update_layout(
@@ -291,15 +313,17 @@ elif section == "Mapa interactivo":
         )
 
     with c4:
-        map_size_option = st.selectbox(
+        map_size_option_raw = st.selectbox(
             "Tamaño de puntos",
             options=["median_income", "population", "households"],
+            format_func=lambda x: nombres_columnas[x],
             index=0
         )
 
-    map_color_option = st.selectbox(
-        "Color de los puntos según:",
+    map_color_option_raw = st.selectbox(
+        "Color de los puntos según",
         options=["median_house_value", "median_income", "housing_median_age"],
+        format_func=lambda x: nombres_columnas[x],
         index=0
     )
 
@@ -313,19 +337,19 @@ elif section == "Mapa interactivo":
         map_center = {"lat": 33.5, "lon": -117.5}
 
     fig_map = px.scatter_mapbox(
-        filtered_df,
-        lat="latitude",
-        lon="longitude",
-        color=map_color_option,
-        size=map_size_option,
-        hover_name="ocean_proximity",
+        filtered_df.rename(columns=nombres_columnas),
+        lat="Latitud",
+        lon="Longitud",
+        color=nombres_columnas[map_color_option_raw],
+        size=nombres_columnas[map_size_option_raw],
+        hover_name="Zona",
         hover_data={
-            "median_house_value": True,
-            "median_income": True,
-            "housing_median_age": True,
-            "total_rooms": True,
-            "latitude": False,
-            "longitude": False
+            "Valor de la vivienda": True,
+            "Ingreso medio del área": True,
+            "Antigüedad mediana de la vivienda": True,
+            "Total de habitaciones": True,
+            "Latitud": False,
+            "Longitud": False
         },
         zoom=map_zoom,
         center=map_center,
@@ -358,14 +382,20 @@ elif section == "Análisis por zona":
                 total_viviendas=("median_house_value", "count")
             )
             .sort_values("precio_promedio", ascending=False)
+            .rename(columns={
+                "ocean_proximity": "Zona",
+                "precio_promedio": "Precio promedio",
+                "ingreso_promedio": "Ingreso promedio",
+                "total_viviendas": "Total de viviendas"
+            })
         )
 
         fig_zone = px.bar(
             zona_df,
-            x="ocean_proximity",
-            y="precio_promedio",
+            x="Zona",
+            y="Precio promedio",
             text_auto=".0f",
-            color="ingreso_promedio",
+            color="Ingreso promedio",
             title="Precio promedio por zona",
             color_continuous_scale="Tealgrn"
         )
@@ -393,12 +423,12 @@ elif section == "Análisis por zona":
 
     with tab3:
         fig_bubble = px.scatter(
-            filtered_df,
-            x="rooms_per_household",
-            y="median_house_value",
-            size="median_income",
-            color="ocean_proximity",
-            hover_data=["housing_median_age", "population"],
+            filtered_df.rename(columns=nombres_columnas),
+            x="Habitaciones por hogar",
+            y="Valor de la vivienda",
+            size="Ingreso medio del área",
+            color="Zona",
+            hover_data=["Antigüedad mediana de la vivienda", "Población del área"],
             title="Habitaciones por hogar vs valor de la vivienda",
             opacity=0.65
         )
@@ -425,16 +455,16 @@ elif section == "Modelo predictivo":
     with tab1:
         fig_pred = px.scatter(
             pred_df,
-            x="Actual",
-            y="Predicted",
+            x="Valor real",
+            y="Valor predicho",
             opacity=0.5,
             title="Valores reales vs valores predichos",
-            color="Predicted",
+            color="Valor predicho",
             color_continuous_scale="Blues"
         )
 
-        min_val = min(pred_df["Actual"].min(), pred_df["Predicted"].min())
-        max_val = max(pred_df["Actual"].max(), pred_df["Predicted"].max())
+        min_val = min(pred_df["Valor real"].min(), pred_df["Valor predicho"].min())
+        max_val = max(pred_df["Valor real"].max(), pred_df["Valor predicho"].max())
 
         fig_pred.add_shape(
             type="line",
@@ -481,7 +511,7 @@ elif section == "Simulador de precio":
     - **Ingreso medio del área** está expresado en decenas de miles de USD.  
       Ejemplo: 5.0 = aproximadamente 50,000 USD.
     - **Antigüedad mediana de la vivienda del área** está expresada en años.
-    - Las demás variables representan cantidades promedio o totales observadas en el área.
+    - Las demás variables representan cantidades agregadas observadas en el área.
     """)
 
     c1, c2 = st.columns(2)
@@ -578,4 +608,24 @@ elif section == "Simulador de precio":
         st.markdown("## 🏠")
         st.progress(fill_pct)
         st.write(f"Esta estimación representa **{fill_pct:.0%}** del valor máximo observado en el dataset.")
-        st.dataframe(input_data, use_container_width=True)
+        st.dataframe(
+            pd.DataFrame({
+                "Variable": [
+                    "Ingreso medio del área",
+                    "Antigüedad mediana de la vivienda",
+                    "Total de habitaciones",
+                    "Total de dormitorios",
+                    "Población del área",
+                    "Número de hogares"
+                ],
+                "Valor": [
+                    median_income,
+                    housing_median_age,
+                    total_rooms,
+                    total_bedrooms,
+                    population,
+                    households
+                ]
+            }),
+            use_container_width=True
+        )
