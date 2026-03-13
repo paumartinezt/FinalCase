@@ -118,55 +118,37 @@ df["bedrooms_per_room"] = df["total_bedrooms"] / df["total_rooms"]
 # ---------------------------------
 # SIDEBAR
 # ---------------------------------
-st.sidebar.title("🏠 Navegación")
-section = st.sidebar.radio(
-    "Selecciona una sección:",
-    [
-        "Overview",
-        "Mapa interactivo",
-        "Análisis por zona",
-        "Modelo predictivo",
-        "Simulador de precio"
-    ]
-)
-
 st.sidebar.markdown("---")
-st.sidebar.subheader("Filtros")
+st.sidebar.subheader("Controles del mapa")
 
-income_range = st.sidebar.slider(
-    "Ingreso medio",
-    float(df["median_income"].min()),
-    float(df["median_income"].max()),
-    (
-        float(df["median_income"].min()),
-        float(df["median_income"].max())
-    )
+map_style = st.sidebar.selectbox(
+    "Estilo del mapa",
+    options=["open-street-map", "carto-positron", "carto-darkmatter"],
+    index=0
 )
 
-age_range = st.sidebar.slider(
-    "Antigüedad de la vivienda",
-    int(df["housing_median_age"].min()),
-    int(df["housing_median_age"].max()),
-    (
-        int(df["housing_median_age"].min()),
-        int(df["housing_median_age"].max())
-    )
+map_zoom = st.sidebar.slider(
+    "Zoom del mapa",
+    min_value=3.0,
+    max_value=10.0,
+    value=4.5,
+    step=0.1
 )
 
-zone_options = sorted(df["ocean_proximity"].dropna().unique().tolist())
-selected_zones = st.sidebar.multiselect(
-    "Zona",
-    options=zone_options,
-    default=zone_options
+map_center_option = st.sidebar.selectbox(
+    "Centrar mapa en:",
+    options=["Vista general", "Norte", "Centro", "Sur"],
+    index=0
 )
 
-filtered_df = df[
-    (df["median_income"] >= income_range[0]) &
-    (df["median_income"] <= income_range[1]) &
-    (df["housing_median_age"] >= age_range[0]) &
-    (df["housing_median_age"] <= age_range[1]) &
-    (df["ocean_proximity"].isin(selected_zones))
-].copy()
+if map_center_option == "Vista general":
+    map_center = {"lat": 36.5, "lon": -119.5}
+elif map_center_option == "Norte":
+    map_center = {"lat": 38.5, "lon": -122.0}
+elif map_center_option == "Centro":
+    map_center = {"lat": 36.5, "lon": -119.5}
+else:  # Sur
+    map_center = {"lat": 33.5, "lon": -117.5}
 
 # ---------------------------------
 # HEADER
@@ -253,20 +235,30 @@ elif section == "Mapa interactivo":
 
     st.write("""
     Este mapa permite explorar cómo cambia el valor de las viviendas según su ubicación.
-    El color representa el precio y el tamaño del punto está relacionado con el ingreso medio del área.
+    Usa los controles del sidebar para acercarte, cambiar el estilo y centrar el mapa.
     """)
 
-    map_size_option = st.selectbox(
-        "Tamaño de los puntos según:",
-        options=["median_income", "population", "households"],
-        index=0
-    )
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+        map_size_option = st.selectbox(
+            "Tamaño de los puntos según:",
+            options=["median_income", "population", "households"],
+            index=0
+        )
+
+    with col2:
+        map_color_option = st.selectbox(
+            "Color de los puntos según:",
+            options=["median_house_value", "median_income", "housing_median_age"],
+            index=0
+        )
 
     fig_map = px.scatter_mapbox(
         filtered_df,
         lat="latitude",
         lon="longitude",
-        color="median_house_value",
+        color=map_color_option,
         size=map_size_option,
         hover_name="ocean_proximity",
         hover_data={
@@ -277,14 +269,15 @@ elif section == "Mapa interactivo":
             "latitude": False,
             "longitude": False
         },
-        zoom=4.5,
-        height=650,
+        zoom=map_zoom,
+        center=map_center,
+        height=700,
         title="Mapa del valor de las viviendas",
         color_continuous_scale="Viridis"
     )
 
     fig_map.update_layout(
-        mapbox_style="open-street-map",
+        mapbox_style=map_style,
         margin=dict(l=0, r=0, t=50, b=0)
     )
 
