@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
+
 # ---------------------------------
 # CONFIGURACIÓN GENERAL
 # ---------------------------------
@@ -48,9 +49,9 @@ st.markdown("""
 @st.cache_data
 def load_data():
     url = "https://raw.githubusercontent.com/ageron/handson-ml/master/datasets/housing/housing.csv"
-    df = pd.read_csv(url)
-    df = df.dropna().reset_index(drop=True)
-    return df
+    data = pd.read_csv(url)
+    data = data.dropna().reset_index(drop=True)
+    return data
 
 df = load_data()
 
@@ -80,12 +81,12 @@ X_train, X_test, y_train, y_test = train_test_split(
 # MODELO
 # ---------------------------------
 @st.cache_resource
-def train_model(X_train, y_train):
+def train_model(X_train_data, y_train_data):
     model = RandomForestRegressor(
         n_estimators=150,
         random_state=42
     )
-    model.fit(X_train, y_train)
+    model.fit(X_train_data, y_train_data)
     return model
 
 rf_model = train_model(X_train, y_train)
@@ -107,17 +108,58 @@ importancias = pd.DataFrame({
 }).sort_values(by="Importancia", ascending=False)
 
 pred_df = pd.DataFrame({
-    "Actual": y_test,
+    "Actual": y_test.values,
     "Predicted": rf_pred
 })
 
-# Crear métrica visual más fácil de entender
 df["rooms_per_household"] = df["total_rooms"] / df["households"]
 df["bedrooms_per_room"] = df["total_bedrooms"] / df["total_rooms"]
 
 # ---------------------------------
 # SIDEBAR
 # ---------------------------------
+st.sidebar.title("🏠 Navegación")
+section = st.sidebar.radio(
+    "Selecciona una sección:",
+    [
+        "Overview",
+        "Mapa interactivo",
+        "Análisis por zona",
+        "Modelo predictivo",
+        "Simulador de precio"
+    ]
+)
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("Filtros generales")
+
+income_range = st.sidebar.slider(
+    "Ingreso medio",
+    min_value=float(df["median_income"].min()),
+    max_value=float(df["median_income"].max()),
+    value=(
+        float(df["median_income"].min()),
+        float(df["median_income"].max())
+    )
+)
+
+age_range = st.sidebar.slider(
+    "Antigüedad de la vivienda",
+    min_value=int(df["housing_median_age"].min()),
+    max_value=int(df["housing_median_age"].max()),
+    value=(
+        int(df["housing_median_age"].min()),
+        int(df["housing_median_age"].max())
+    )
+)
+
+zone_options = sorted(df["ocean_proximity"].dropna().unique().tolist())
+selected_zones = st.sidebar.multiselect(
+    "Zona",
+    options=zone_options,
+    default=zone_options
+)
+
 st.sidebar.markdown("---")
 st.sidebar.subheader("Controles del mapa")
 
@@ -147,13 +189,29 @@ elif map_center_option == "Norte":
     map_center = {"lat": 38.5, "lon": -122.0}
 elif map_center_option == "Centro":
     map_center = {"lat": 36.5, "lon": -119.5}
-else:  # Sur
+else:
     map_center = {"lat": 33.5, "lon": -117.5}
+
+filtered_df = df[
+    (df["median_income"] >= income_range[0]) &
+    (df["median_income"] <= income_range[1]) &
+    (df["housing_median_age"] >= age_range[0]) &
+    (df["housing_median_age"] <= age_range[1]) &
+    (df["ocean_proximity"].isin(selected_zones))
+].copy()
+
+# Evita errores si los filtros dejan vacío el dataset
+if filtered_df.empty:
+    st.warning("No hay datos con esos filtros. Ajusta los filtros del sidebar.")
+    st.stop()
 
 # ---------------------------------
 # HEADER
 # ---------------------------------
-st.markdown('<div class="main-title">Housing Analytics & Price Prediction</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="main-title">Housing Analytics & Price Prediction</div>',
+    unsafe_allow_html=True
+)
 st.markdown(
     '<div class="subtitle">Proyecto de Análisis de Negocios y Soluciones</div>',
     unsafe_allow_html=True
@@ -173,16 +231,16 @@ if section == "Overview":
 
     st.markdown("### Problema de negocio")
     st.write("""
-    Estimar el valor de una vivienda puede ser difícil porque depende de múltiples factores al mismo tiempo.
-    Este proyecto busca apoyar decisiones de negocio relacionadas con fijación de precios, comparación de propiedades
-    y análisis de oportunidades en el mercado inmobiliario.
+    Estimar el valor de una vivienda puede ser difícil porque depende de varios factores al mismo tiempo.
+    Este proyecto busca apoyar decisiones relacionadas con fijación de precios, comparación de propiedades
+    y análisis de oportunidades dentro del mercado inmobiliario.
     """)
 
     st.markdown("### Hallazgos clave")
     top_var = importancias.iloc[0]["Variable"]
     st.write(f"""
     - La variable más importante para el modelo es **{top_var}**.
-    - Las viviendas en ciertas zonas muestran diferencias claras en precio promedio.
+    - Existen diferencias claras de precio entre distintas zonas.
     - El modelo Random Forest permite crear una herramienta útil de estimación de precios.
     """)
 
@@ -238,7 +296,7 @@ elif section == "Mapa interactivo":
     Usa los controles del sidebar para acercarte, cambiar el estilo y centrar el mapa.
     """)
 
-    col1, col2 = st.columns([1, 1])
+    col1, col2 = st.columns(2)
 
     with col1:
         map_size_option = st.selectbox(
@@ -262,8 +320,8 @@ elif section == "Mapa interactivo":
         size=map_size_option,
         hover_name="ocean_proximity",
         hover_data={
-            "median_house_value": ":,.0f",
-            "median_income": ":.2f",
+            "median_house_value": True,
+            "median_income": True,
             "housing_median_age": True,
             "total_rooms": True,
             "latitude": False,
@@ -271,7 +329,7 @@ elif section == "Mapa interactivo":
         },
         zoom=map_zoom,
         center=map_center,
-        height=700,
+        height=650,
         title="Mapa del valor de las viviendas",
         color_continuous_scale="Viridis"
     )
