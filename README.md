@@ -126,17 +126,10 @@ El proyecto fue desarrollado utilizando las siguientes herramientas:
 Puedes acceder al dashboard interactivo en el siguiente enlace:
 
 **Streamlit App:**  
-(link aquí)
+(https://finalcase-bi.streamlit.app/)
 
 ---
 
-# Video de presentación
-
-El video de explicación del proyecto puede consultarse en el siguiente enlace:
-
-(link aquí)
-
----
 
 # Autor
 
