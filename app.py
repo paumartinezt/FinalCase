@@ -1,23 +1,26 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
 
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# -----------------------------
-# CONFIGURACIÓN GENERAL
-# -----------------------------
-st.set_page_config(page_title="Housing Price Prediction Dashboard", layout="wide")
+# ---------------------------------
+# CONFIG
+# ---------------------------------
+st.set_page_config(
+    page_title="Housing Analytics Dashboard",
+    page_icon="🏠",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-st.title("Housing Price Prediction Dashboard")
-st.subheader("Proyecto de Análisis de Negocios y Soluciones")
-
-# -----------------------------
-# CARGA DE DATOS
-# -----------------------------
+# ---------------------------------
+# DATA
+# ---------------------------------
 @st.cache_data
 def load_data():
     url = "https://raw.githubusercontent.com/ageron/handson-ml/master/datasets/housing/housing.csv"
@@ -27,22 +30,18 @@ def load_data():
 
 df = load_data()
 
-# -----------------------------
-# PREPARACIÓN DE DATOS
-# -----------------------------
 features = [
-    'median_income',
-    'housing_median_age',
-    'total_rooms',
-    'total_bedrooms',
-    'population',
-    'households'
+    "median_income",
+    "housing_median_age",
+    "total_rooms",
+    "total_bedrooms",
+    "population",
+    "households"
 ]
+target = "median_house_value"
 
-target = 'median_house_value'
-
-X = df[features]
-y = df[target]
+X = df[features].copy()
+y = df[target].copy()
 
 X = X.fillna(X.mean())
 
@@ -50,13 +49,13 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
 
-# -----------------------------
-# MODELO
-# -----------------------------
+# ---------------------------------
+# MODEL
+# ---------------------------------
 @st.cache_resource
 def train_model(X_train, y_train):
     model = RandomForestRegressor(
-        n_estimators=100,
+        n_estimators=150,
         random_state=42
     )
     model.fit(X_train, y_train)
@@ -65,162 +64,267 @@ def train_model(X_train, y_train):
 rf_model = train_model(X_train, y_train)
 rf_pred = rf_model.predict(X_test)
 
-# -----------------------------
-# MÉTRICAS
-# -----------------------------
 mae = mean_absolute_error(y_test, rf_pred)
 rmse = np.sqrt(mean_squared_error(y_test, rf_pred))
 r2 = r2_score(y_test, rf_pred)
 
-# -----------------------------
+importancias = pd.DataFrame({
+    "Variable": features,
+    "Importancia": rf_model.feature_importances_
+}).sort_values(by="Importancia", ascending=False)
+
+pred_df = pd.DataFrame({
+    "Actual": y_test,
+    "Predicted": rf_pred
+})
+
+# ---------------------------------
 # SIDEBAR
-# -----------------------------
-st.sidebar.title("Navegación")
+# ---------------------------------
+st.sidebar.title("🏠 Navegación")
 section = st.sidebar.radio(
     "Ir a:",
     [
-        "Resumen del negocio",
-        "Exploración de datos",
-        "Modelo y métricas",
-        "Predicción interactiva",
-        "Importancia de variables"
+        "Overview",
+        "Exploración interactiva",
+        "Modelo predictivo",
+        "Simulador de precio"
     ]
 )
 
-# -----------------------------
-# 1. RESUMEN DEL NEGOCIO
-# -----------------------------
-if section == "Resumen del negocio":
-    st.header("Resumen del problema de negocio")
+st.sidebar.markdown("---")
+st.sidebar.subheader("Filtros para exploración")
 
+income_range = st.sidebar.slider(
+    "Ingreso medio",
+    float(df["median_income"].min()),
+    float(df["median_income"].max()),
+    (
+        float(df["median_income"].min()),
+        float(df["median_income"].max())
+    )
+)
+
+age_range = st.sidebar.slider(
+    "Antigüedad de la vivienda",
+    int(df["housing_median_age"].min()),
+    int(df["housing_median_age"].max()),
+    (
+        int(df["housing_median_age"].min()),
+        int(df["housing_median_age"].max())
+    )
+)
+
+filtered_df = df[
+    (df["median_income"] >= income_range[0]) &
+    (df["median_income"] <= income_range[1]) &
+    (df["housing_median_age"] >= age_range[0]) &
+    (df["housing_median_age"] <= age_range[1])
+]
+
+# ---------------------------------
+# HEADER
+# ---------------------------------
+st.title("Housing Analytics & Price Prediction")
+st.caption("Proyecto de Análisis de Negocios y Soluciones")
+
+# ---------------------------------
+# OVERVIEW
+# ---------------------------------
+if section == "Overview":
+    st.markdown("## Resumen ejecutivo")
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Registros analizados", f"{len(df):,}")
+    col2.metric("Precio promedio", f"${df[target].mean():,.0f}")
+    col3.metric("RMSE del modelo", f"{rmse:,.0f}")
+    col4.metric("R² del modelo", f"{r2:.3f}")
+
+    st.markdown("### Problema de negocio")
     st.write("""
-    El mercado inmobiliario presenta alta variabilidad en los precios de las viviendas, lo que dificulta
-    para compradores, vendedores e inversionistas estimar el valor adecuado de una propiedad.
-
-    Este proyecto utiliza datos históricos de vivienda para identificar variables relevantes y construir
-    un modelo predictivo que ayude a estimar el valor de una vivienda con base en sus características.
+    Estimar el precio de una vivienda puede ser complejo porque depende de varias variables al mismo tiempo.
+    Este proyecto busca apoyar decisiones de negocio relacionadas con pricing, comparación de propiedades
+    y evaluación de oportunidades inmobiliarias.
     """)
 
-    st.write("### Objetivo de negocio")
-    st.write("""
-    Apoyar decisiones relacionadas con:
-    - fijación de precios
-    - comparación entre propiedades
-    - identificación de factores que influyen en el valor de mercado
+    st.markdown("### Hallazgos clave")
+    top_var = importancias.iloc[0]["Variable"]
+    st.write(f"""
+    - La variable con mayor peso en la predicción es **{top_var}**.
+    - Existe una relación positiva clara entre **median_income** y el valor de la vivienda.
+    - El modelo Random Forest ofrece una base útil para crear una herramienta de estimación interactiva.
     """)
 
-    st.write("### Dataset utilizado")
-    st.write("""
-    Se utilizó un dataset de viviendas con variables como:
-    - ingreso medio del área
-    - antigüedad de la vivienda
-    - número de habitaciones
-    - número de dormitorios
-    - población
-    - número de hogares
-    """)
+    fig_hist = px.histogram(
+        filtered_df,
+        x="median_house_value",
+        nbins=40,
+        title="Distribución del precio de las viviendas"
+    )
+    fig_hist.update_layout(height=450)
 
-# -----------------------------
-# 2. EXPLORACIÓN DE DATOS
-# -----------------------------
-elif section == "Exploración de datos":
-    st.header("Exploración de datos")
+    fig_scatter = px.scatter(
+        filtered_df,
+        x="median_income",
+        y="median_house_value",
+        opacity=0.5,
+        title="Ingreso medio vs valor de la vivienda",
+        hover_data=features
+    )
+    fig_scatter.update_layout(height=450)
 
-    col1, col2 = st.columns(2)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.plotly_chart(fig_hist, use_container_width=True)
+    with c2:
+        st.plotly_chart(fig_scatter, use_container_width=True)
 
-    with col1:
-        st.subheader("Distribución del precio de las viviendas")
-        fig, ax = plt.subplots()
-        ax.hist(df['median_house_value'], bins=40)
-        ax.set_title("Distribución del precio")
-        ax.set_xlabel("Precio")
-        ax.set_ylabel("Frecuencia")
-        st.pyplot(fig)
+# ---------------------------------
+# EXPLORACIÓN
+# ---------------------------------
+elif section == "Exploración interactiva":
+    st.markdown("## Exploración interactiva")
 
-    with col2:
-        st.subheader("Ingreso medio vs valor de la vivienda")
-        fig, ax = plt.subplots()
-        ax.scatter(df['median_income'], df['median_house_value'], alpha=0.3)
-        ax.set_title("Ingreso medio vs precio")
-        ax.set_xlabel("Ingreso medio")
-        ax.set_ylabel("Valor de la vivienda")
-        st.pyplot(fig)
+    tab1, tab2, tab3 = st.tabs(["Relaciones", "Correlación", "Datos"])
 
-    st.subheader("Vista previa de los datos")
-    st.dataframe(df.head(20))
+    with tab1:
+        x_axis = st.selectbox(
+            "Selecciona variable para eje X",
+            options=features,
+            index=0
+        )
 
-# -----------------------------
-# 3. MODELO Y MÉTRICAS
-# -----------------------------
-elif section == "Modelo y métricas":
-    st.header("Modelo y métricas")
+        y_axis = st.selectbox(
+            "Selecciona variable para eje Y",
+            options=["median_house_value"] + features,
+            index=0
+        )
 
-    st.write("Se entrenó un modelo **Random Forest Regressor** para estimar el valor de las viviendas.")
+        size_option = st.selectbox(
+            "Tamaño de puntos",
+            options=[None] + features,
+            index=0
+        )
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("MAE", f"{mae:,.2f}")
-    col2.metric("RMSE", f"{rmse:,.2f}")
-    col3.metric("R²", f"{r2:.4f}")
+        fig_dynamic = px.scatter(
+            filtered_df,
+            x=x_axis,
+            y=y_axis,
+            size=size_option if size_option is not None else None,
+            color="median_house_value",
+            hover_data=features,
+            title=f"{x_axis} vs {y_axis}"
+        )
+        fig_dynamic.update_layout(height=600)
+        st.plotly_chart(fig_dynamic, use_container_width=True)
 
-    st.subheader("Valores reales vs predichos")
-    fig, ax = plt.subplots()
-    ax.scatter(y_test, rf_pred, alpha=0.4)
-    ax.set_title("Random Forest: valores reales vs predichos")
-    ax.set_xlabel("Valores reales")
-    ax.set_ylabel("Valores predichos")
-    st.pyplot(fig)
+    with tab2:
+        corr = filtered_df[features + [target]].corr()
 
-# -----------------------------
-# 4. PREDICCIÓN INTERACTIVA
-# -----------------------------
-elif section == "Predicción interactiva":
-    st.header("Predicción interactiva del precio de una vivienda")
+        fig_corr = px.imshow(
+            corr,
+            text_auto=True,
+            aspect="auto",
+            title="Mapa de correlación"
+        )
+        fig_corr.update_layout(height=650)
+        st.plotly_chart(fig_corr, use_container_width=True)
 
-    st.write("Ajusta los valores para estimar el precio de una vivienda:")
+    with tab3:
+        st.dataframe(filtered_df, use_container_width=True)
 
-    median_income = st.slider("Ingreso medio del área", 0.0, 15.0, 5.0, 0.1)
-    housing_median_age = st.slider("Antigüedad de la vivienda", 1, 60, 20)
-    total_rooms = st.slider("Total de habitaciones", 1, 10000, 2000)
-    total_bedrooms = st.slider("Total de dormitorios", 1, 3000, 400)
-    population = st.slider("Población del área", 1, 20000, 1000)
-    households = st.slider("Número de hogares", 1, 5000, 300)
+# ---------------------------------
+# MODELO
+# ---------------------------------
+elif section == "Modelo predictivo":
+    st.markdown("## Modelo predictivo")
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("MAE", f"{mae:,.0f}")
+    c2.metric("RMSE", f"{rmse:,.0f}")
+    c3.metric("R²", f"{r2:.3f}")
+
+    tab1, tab2 = st.tabs(["Actual vs Predicted", "Importancia de variables"])
+
+    with tab1:
+        fig_pred = px.scatter(
+            pred_df,
+            x="Actual",
+            y="Predicted",
+            opacity=0.5,
+            title="Valores reales vs valores predichos"
+        )
+
+        min_val = min(pred_df["Actual"].min(), pred_df["Predicted"].min())
+        max_val = max(pred_df["Actual"].max(), pred_df["Predicted"].max())
+
+        fig_pred.add_shape(
+            type="line",
+            x0=min_val, y0=min_val,
+            x1=max_val, y1=max_val,
+            line=dict(dash="dash")
+        )
+
+        fig_pred.update_layout(height=600)
+        st.plotly_chart(fig_pred, use_container_width=True)
+
+    with tab2:
+        fig_imp = px.bar(
+            importancias,
+            x="Importancia",
+            y="Variable",
+            orientation="h",
+            title="Importancia de variables en Random Forest"
+        )
+        fig_imp.update_layout(height=500, yaxis=dict(categoryorder="total ascending"))
+        st.plotly_chart(fig_imp, use_container_width=True)
+        st.dataframe(importancias, use_container_width=True)
+
+# ---------------------------------
+# SIMULADOR
+# ---------------------------------
+elif section == "Simulador de precio":
+    st.markdown("## Simulador interactivo de precio")
+
+    st.write("Ajusta los valores y explora cómo cambia la predicción del modelo.")
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        median_income = st.slider("Ingreso medio del área", 0.0, 15.0, 5.0, 0.1)
+        housing_median_age = st.slider("Antigüedad de la vivienda", 1, 60, 20)
+        total_rooms = st.slider("Total de habitaciones", 1, 10000, 2000)
+
+    with c2:
+        total_bedrooms = st.slider("Total de dormitorios", 1, 3000, 400)
+        population = st.slider("Población del área", 1, 20000, 1000)
+        households = st.slider("Número de hogares", 1, 5000, 300)
 
     input_data = pd.DataFrame({
-        'median_income': [median_income],
-        'housing_median_age': [housing_median_age],
-        'total_rooms': [total_rooms],
-        'total_bedrooms': [total_bedrooms],
-        'population': [population],
-        'households': [households]
+        "median_income": [median_income],
+        "housing_median_age": [housing_median_age],
+        "total_rooms": [total_rooms],
+        "total_bedrooms": [total_bedrooms],
+        "population": [population],
+        "households": [households]
     })
 
     prediction = rf_model.predict(input_data)[0]
 
-    st.subheader("Precio estimado")
-    st.success(f"${prediction:,.2f}")
+    st.metric("Precio estimado de la vivienda", f"${prediction:,.0f}")
 
-    st.write("### Datos usados para la predicción")
-    st.dataframe(input_data)
+    fig_gauge = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=prediction,
+        title={"text": "Predicción del modelo"},
+        gauge={
+            "axis": {"range": [0, float(df[target].max())]}
+        }
+    ))
+    fig_gauge.update_layout(height=400)
 
-# -----------------------------
-# 5. IMPORTANCIA DE VARIABLES
-# -----------------------------
-elif section == "Importancia de variables":
-    st.header("Importancia de variables")
-
-    importancias = pd.DataFrame({
-        'Variable': features,
-        'Importancia': rf_model.feature_importances_
-    }).sort_values(by='Importancia', ascending=False)
-
-    st.subheader("Tabla de importancia")
-    st.dataframe(importancias)
-
-    st.subheader("Gráfica de importancia")
-    fig, ax = plt.subplots()
-    ax.bar(importancias['Variable'], importancias['Importancia'])
-    ax.set_title("Importancia de variables - Random Forest")
-    ax.set_xlabel("Variable")
-    ax.set_ylabel("Importancia")
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
+    c3, c4 = st.columns([1.2, 1])
+    with c3:
+        st.plotly_chart(fig_gauge, use_container_width=True)
+    with c4:
+        st.dataframe(input_data, use_container_width=True)
