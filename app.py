@@ -160,38 +160,6 @@ selected_zones = st.sidebar.multiselect(
     default=zone_options
 )
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("Controles del mapa")
-
-map_style = st.sidebar.selectbox(
-    "Estilo del mapa",
-    options=["open-street-map", "carto-positron", "carto-darkmatter"],
-    index=0
-)
-
-map_zoom = st.sidebar.slider(
-    "Zoom del mapa",
-    min_value=3.0,
-    max_value=10.0,
-    value=4.5,
-    step=0.1
-)
-
-map_center_option = st.sidebar.selectbox(
-    "Centrar mapa en:",
-    options=["Vista general", "Norte", "Centro", "Sur"],
-    index=0
-)
-
-if map_center_option == "Vista general":
-    map_center = {"lat": 36.5, "lon": -119.5}
-elif map_center_option == "Norte":
-    map_center = {"lat": 38.5, "lon": -122.0}
-elif map_center_option == "Centro":
-    map_center = {"lat": 36.5, "lon": -119.5}
-else:
-    map_center = {"lat": 33.5, "lon": -117.5}
-
 filtered_df = df[
     (df["median_income"] >= income_range[0]) &
     (df["median_income"] <= income_range[1]) &
@@ -200,7 +168,6 @@ filtered_df = df[
     (df["ocean_proximity"].isin(selected_zones))
 ].copy()
 
-# Evita errores si los filtros dejan vacío el dataset
 if filtered_df.empty:
     st.warning("No hay datos con esos filtros. Ajusta los filtros del sidebar.")
     st.stop()
@@ -293,24 +260,57 @@ elif section == "Mapa interactivo":
 
     st.write("""
     Este mapa permite explorar cómo cambia el valor de las viviendas según su ubicación.
-    Usa los controles del sidebar para acercarte, cambiar el estilo y centrar el mapa.
+    Ajusta los controles para cambiar la vista, el zoom y la forma en la que se representan los datos.
     """)
 
-    col1, col2 = st.columns(2)
+    st.markdown("### Controles del mapa")
 
-    with col1:
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
+        map_style = st.selectbox(
+            "Estilo del mapa",
+            options=["open-street-map", "carto-positron", "carto-darkmatter"],
+            index=0
+        )
+
+    with c2:
+        map_zoom = st.slider(
+            "Zoom",
+            min_value=3.0,
+            max_value=10.0,
+            value=4.5,
+            step=0.1
+        )
+
+    with c3:
+        map_center_option = st.selectbox(
+            "Centrar en",
+            options=["Vista general", "Norte", "Centro", "Sur"],
+            index=0
+        )
+
+    with c4:
         map_size_option = st.selectbox(
-            "Tamaño de los puntos según:",
+            "Tamaño de puntos",
             options=["median_income", "population", "households"],
             index=0
         )
 
-    with col2:
-        map_color_option = st.selectbox(
-            "Color de los puntos según:",
-            options=["median_house_value", "median_income", "housing_median_age"],
-            index=0
-        )
+    map_color_option = st.selectbox(
+        "Color de los puntos según:",
+        options=["median_house_value", "median_income", "housing_median_age"],
+        index=0
+    )
+
+    if map_center_option == "Vista general":
+        map_center = {"lat": 36.5, "lon": -119.5}
+    elif map_center_option == "Norte":
+        map_center = {"lat": 38.5, "lon": -122.0}
+    elif map_center_option == "Centro":
+        map_center = {"lat": 36.5, "lon": -119.5}
+    else:
+        map_center = {"lat": 33.5, "lon": -117.5}
 
     fig_map = px.scatter_mapbox(
         filtered_df,
@@ -378,11 +378,7 @@ elif section == "Análisis por zona":
         st.dataframe(zona_df, use_container_width=True)
 
     with tab2:
-        count_df = (
-            filtered_df["ocean_proximity"]
-            .value_counts()
-            .reset_index()
-        )
+        count_df = filtered_df["ocean_proximity"].value_counts().reset_index()
         count_df.columns = ["Zona", "Cantidad"]
 
         fig_pie = px.pie(
